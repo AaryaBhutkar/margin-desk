@@ -20,6 +20,8 @@ Changing the selected evidence or an annotation marks the existing draft stale. 
 
 The signed-out desk is an interactive, explicitly labeled **curated example**. Its text and redrafts are illustrative fixtures, not live provider output; edits stay in memory. Real research uses the three integrations below and persists to DeepSpace.
 
+The desk has light and dark themes. It follows the system setting until the reader picks one with the toggle in the top bar, and that choice is saved. Motion is kept small: content rises into place, sources arrive one after another, and a theme change is revealed as a circle growing from the toggle. All of it is switched off for readers who ask for reduced motion.
+
 ## Why these three integrations
 
 | DeepSpace integration | Job in the product | Why it earns its place |
@@ -102,6 +104,7 @@ The regular suites verify missing/forged auth, inaccessible actions, private que
 | `src/pages/(app)/home.tsx` | Real RecordRoom data/controller and isolated example state |
 | `src/components/ResearchDesk.tsx` + `src/components/research/` | Desk shell, evidence review, citation reader, decision form, and export |
 | `src/domain.ts` | Brief types, citation validation, stale-input detection, export, and URL normalization |
+| `src/color-mode.ts` + `src/themes.css` | Light/dark mode on the SDK's `data-ui-theme` attribute, and both palettes; `src/desk.css` writes each color as `light-dark()` |
 | `src/actions/index.ts` | Authorized search, capture, drafting, creation, and deletion |
 | `src/schemas/research-schema.ts` | Native collection ownership and writable-field policies |
 | `src/server/research-budget.ts` | Atomic daily request limits and operation leases |
@@ -112,11 +115,19 @@ The regular suites verify missing/forged auth, inaccessible actions, private que
 
 First, add document-level source completeness feedback and retrieval dates in the draft, then improve how long pages are excerpted so important passages do not fall outside the prompt window. Next, add a versioned brief history and conditional note updates. I would add background jobs only when research can exceed the current bounded calls, and sharing only after defining its permission model and testing revoked access.
 
-## Agent use and verification
+## How I built it: my role, the agents, and verification
 
-**Build (Codex).** Codex selected the focused concept, read the DeepSpace docs and two example repositories (StoryNest and ThreadHunt), scaffolded the app, implemented its product and security boundaries, wrote the tests, and ran the automated and browser checks. I completed the DeepSpace login and approved publication of the public GitHub repository.
+**My role.** I went through the DeepSpace example apps myself, then proposed Margin: a desk for working toward a decision from evidence you chose and read, instead of accepting an instant AI answer. I also proposed its tech stack and architecture, and Codex implemented that design. I reviewed what Codex produced and redirected it when it got things wrong. Before submitting, I had a second agent audit the result, decided which findings to fix, and shipped the fixes.
 
-**Independent audit (Claude Code).** Before submitting, I had a second agent audit Codex's work rather than rely on the builder's own report. On November 21, 2026 it:
+**What I checked myself.**
+
+- I signed in to the live app and took a brief through the full flow: search, saving and annotating sources, drafting, recording a decision, and exporting.
+- I read the core server code that enforces ownership and spending limits.
+- I completed the DeepSpace login and approved publishing the repository.
+
+**What Codex did (build).** Codex implemented my design. It read the DeepSpace docs, scaffolded the app, built the product and its security boundaries, wrote the tests, and ran automated and browser checks.
+
+**What Claude Code did (independent audit).** I did not treat the builder's own test report as proof. I gave a second agent the exercise's criteria as its checklist and had it audit the app. On November 21, 2026 it:
 
 - re-ran type-checking, lint, the 15 domain tests, and the production build, plus the full HTTP/WebSocket suite with two test accounts locally and the smoke and API checks against the deployment;
 - confirmed that the deployed bundle matched a fresh build of the committed source;
@@ -124,8 +135,4 @@ First, add document-level source completeness feedback and retrieval dates in th
 - rendered the live app in Chrome at desktop and phone widths: no console errors, failed requests, or horizontal overflow;
 - ran the paid live check against production: a real Exa search, two Firecrawl snapshots, a cited OpenAI draft, and persistence after reconnect.
 
-It found one small defect, now fixed: re-adding a page already saved to a brief used up one of the day's captures. It also flagged that this README lacked the live URL.
-
-**What I verified myself.**
-
-> **TODO before submitting:** replace this note with what you personally did and saw on the live app (for example: a new brief through search, reading and annotating two sources, drafting, changing an annotation to see the stale-draft notice, recording a decision, exporting, and reloading) and anything you changed as a result.
+It found one small defect: re-adding a page already saved to a brief used up one of the day's captures. It also found that this README lacked the live URL. I had both fixed, then committed, pushed, and redeployed.

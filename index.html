@@ -27,8 +27,24 @@
         background-color: #f7f7ef;
         color-scheme: light;
       }
-      /* Add one line per theme you create, mirroring its --color-background. */
+      html[data-ui-theme='dark'] {
+        background-color: #181813;
+        color-scheme: dark;
+      }
     </style>
+    <script>
+      // Apply the saved or system color mode before first paint. The same rule
+      // lives in resolveColorMode (src/color-mode.ts); keep the key in sync.
+      var marginMode = null
+      try {
+        marginMode = localStorage.getItem('margin:color-mode')
+      } catch (e) {}
+      document.documentElement.dataset.uiTheme =
+        marginMode === 'dark' ||
+        (marginMode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+          ? 'dark'
+          : 'light'
+    </script>
   </head>
   <body>
     <div id="root"></div>

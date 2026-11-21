@@ -15,6 +15,7 @@ import {
 import { Button, ConfirmModal, EmptyState, Modal, useToast } from './ui'
 import { exportBrief, type SourceSnapshot } from '../domain'
 import { date, type DeskProps } from './research/shared'
+import ThemeToggle from './research/ThemeToggle'
 import Workbench from './research/Workbench'
 import { NewBriefModal, SourceReader } from './research/Dialogs'
 
@@ -186,6 +187,7 @@ export default function ResearchDesk(props: DeskProps) {
               <LockKeyhole size={12} />
               {demo ? 'Example workspace' : 'Only you'}
             </span>
+            <ThemeToggle />
             <Button variant="outline" size="sm" onClick={download} disabled={!current || !!busy}>
               <ArrowDownToLine size={14} />
               <span>Export</span>

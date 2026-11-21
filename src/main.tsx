@@ -4,9 +4,11 @@ import { createRoot, hydrateRoot } from 'react-dom/client'
 import { routes } from '@generouted/react-router/lazy'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 import { installStaleChunkRecovery } from './stale-chunk-recovery'
+import { installColorMode } from './color-mode'
 import './styles.css'
 
 async function main() {
+  installColorMode()
   const root = document.getElementById('root')!
   const router = createBrowserRouter(routes)
   installStaleChunkRecovery(router)

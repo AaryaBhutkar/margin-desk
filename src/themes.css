@@ -24,3 +24,31 @@
   --color-shell-panel: #fffef9;
   --radius: 0.35rem;
 }
+
+/* Margin at night: the same paper and ink, read by lamplight. `data-ui-theme`
+ * is the SDK's light/dark attribute (src/color-mode.ts sets it). Switching
+ * `color-scheme` also flips every light-dark() color in desk.css. */
+[data-theme='margin'][data-ui-theme='dark'] {
+  color-scheme: dark;
+  --color-background: #181813;
+  --color-foreground: #daebd4;
+  --color-card: #1f1e1b;
+  --color-card-foreground: #daebd4;
+  --color-popover: #22211d;
+  --color-popover-foreground: #daebd4;
+  --color-primary: #a8c79c;
+  --color-primary-foreground: #16211a;
+  --color-secondary: #22261c;
+  --color-secondary-foreground: #bedab3;
+  --color-muted: #1f2119;
+  --color-muted-foreground: #aebaa0;
+  --color-accent: #232719;
+  --color-accent-foreground: #c3e4b8;
+  --color-border: #2f3325;
+  --color-input: #353c29;
+  --color-ring: #8fae76;
+  --color-destructive: #c98a66;
+  --color-destructive-foreground: #1b120c;
+  --color-shell: #22211b;
+  --color-shell-panel: #1f1e1b;
+}
