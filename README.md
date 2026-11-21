@@ -1,65 +1,97 @@
 # Margin
 
-A little research. A clearer decision.
+**A little research. A clearer decision.**
 
-**Live:** <https://margin-desk.app.space> · **Repository:** <https://github.com/AaryaBhutkar/margin-desk>
+Margin is a private research desk for decisions that deserve more than an instant AI answer. Start with a specific question, read a few sources, note what supports or challenges the idea, and draft a decision brief in which every claim cites a page you saved. Your own decision stays separate from the AI draft.
 
-Margin is a private research desk for decisions that deserve more than an instant AI answer. Start with a specific question, read a few sources, annotate what supports or challenges the idea, and draft a brief you can trace back to the evidence. Your own decision stays separate from the AI draft.
+**Live app:** <https://margin-desk.app.space>
 
-Built with **DeepSpace 0.44.2**, React, Hono, and Cloudflare Durable Objects.
+![The decision brief in light mode: a recommendation with numbered citations, and the cited sources listed beside it](docs/screenshots/decision-brief-light.png)
 
-## The finished flow
+## Features
 
-1. Sign in and open a brief with a question and your constraints.
-2. Search for evidence or add a public HTTPS page.
-3. Read and save page text. Add an annotation, choose a stance, and include or set aside the source.
-4. Draft from two to six included sources. Inspect the citations, counterargument, and unanswered questions.
-5. Record your own decision and download a Markdown brief with source links and research notes.
+- **Briefs.** Open a brief with a question and your constraints.
+- **Evidence.** Search the web for candidate sources, or add any public HTTPS page.
+- **Reading and annotation.** Save a page's main text, read it in place, add a note, mark it as supporting, challenging, or adding context, and include it in the brief or set it aside.
+- **Cited drafts.** Draft from two to six included sources. Every finding links to the sources it cites, alongside a counterargument and the questions that remain open.
+- **Your decision.** Record your own decision next to the draft, then export the brief as Markdown with source links and research notes.
+- **Stale-draft detection.** Changing the selected evidence or an annotation marks the existing draft out of date. Old drafts keep their source references even after a source is removed.
+- **Graceful failure.** A failed search, extraction, or model call keeps the last successful result and offers a retry.
+- **Example desk.** Signed-out visitors get an interactive, clearly labeled example with curated content. It makes no paid calls, and edits stay in memory.
+- **Light and dark themes.** Margin follows the system setting until the reader picks a theme, and remembers the choice. Motion is kept small, and all of it is turned off for readers who ask for reduced motion.
 
-Changing the selected evidence or an annotation marks the existing draft stale. Old drafts keep their source references even after a source is removed. Failed searches, extractions, or model calls preserve the previous successful work and offer a local retry.
+![The evidence list in dark mode: source cards with stances and notes, and a tally of supporting and challenging sources](docs/screenshots/evidence-dark.png)
 
-The signed-out desk is an interactive, explicitly labeled **curated example**. Its text and redrafts are illustrative fixtures, not live provider output; edits stay in memory. Real research uses the three integrations below and persists to DeepSpace.
+## Tech stack
 
-The desk has light and dark themes. It follows the system setting until the reader picks one with the toggle in the top bar, and that choice is saved. Motion is kept small: content rises into place, sources arrive one after another, and a theme change is revealed as a circle growing from the toggle. All of it is switched off for readers who ask for reduced motion.
+- **Platform:** [DeepSpace](https://docs.deep.space) 0.44.2 on Cloudflare Workers and Durable Objects
+- **Frontend:** React 19, Vite, Tailwind CSS v4, file-based routing
+- **Server:** Hono, with Zod validation of action inputs and model responses
+- **Integrations:** Exa, Firecrawl, and OpenAI, through the DeepSpace integration proxy
+- **Testing:** Vitest for unit tests; Playwright and Node WebSockets for HTTP, auth, and multi-account sync tests
 
-## Why these three integrations
+## Architecture
 
-| DeepSpace integration | Job in the product | Why it earns its place |
+```text
+Browser (React)
+ │
+ ├── live records (WebSocket) ──────▶ RecordRoom (SQLite: briefs, evidence)
+ │                                     owner-only reads; narrow browser writes
+ │
+ └── POST /api/actions/:name ───────▶ Worker (Hono)
+                                       ├─▶ ResearchBudget (Durable Object): daily limits, per-brief leases
+                                       ├─▶ DeepSpace integration proxy ─▶ Exa · Firecrawl · OpenAI
+                                       └─▶ RecordRoom: validated results saved and synced to every open session
+```
+
+Reads, annotations, stances, inclusion toggles, and the reader's decision go straight to the record room. Anything that creates records, calls a paid provider, or deletes data goes through an authenticated server action.
+
+## Integrations
+
+| Integration | Role in the product | Why it is here |
 | --- | --- | --- |
-| `exa/search` | Find up to six relevant pages, with short excerpts | Helps the reader discover evidence and counterarguments without generating a premature answer. |
-| `firecrawl/scrape` | Extract the main text of a selected public page | Saves an inspectable snapshot instead of drafting from a search snippet alone. |
-| `openai/chat-completion` | Turn selected snapshots and annotations into a structured decision brief | Connects findings, identifies uncertainty, and cites only supplied source IDs. Uses `gpt-4.1-mini` for bounded, fast synthesis. |
+| `exa/search` | Finds up to six relevant pages, with short excerpts | Helps the reader discover evidence and counterarguments without generating a premature answer. |
+| `firecrawl/scrape` | Extracts the main text of a page the reader chooses | Drafts work from a saved, inspectable snapshot instead of a search snippet. |
+| `openai/chat-completion` | Turns the included snapshots and annotations into a structured decision brief | Connects findings, names uncertainty, and cites only the supplied sources. Uses `gpt-4.1-mini` for bounded, fast synthesis. |
 
-All three use DeepSpace's integration proxy and developer billing. There are no vendor API keys in the app. Sign-in is required for real research. The public example makes no paid calls.
+All three run through DeepSpace's integration proxy with developer billing, so the app holds no vendor API keys. Real research requires sign-in.
 
-No calendar, messaging, payments, image generation, or email integration was added. None is needed to complete this decision workflow. A share/collaboration system would require a deliberate permission and invitation design; it is outside this personal-desk scope.
+Calendar, messaging, payments, email, and image generation were left out because none of them helps one person reach a decision. Sharing and collaboration would need a permission and invitation model of their own, so they are outside the scope of a personal desk.
 
-## Platform primitives and trust boundaries
+## Security and trust boundaries
 
-- **Authentication:** the scaffold's DeepSpace auth provider and verified JWTs. The app does not implement an identity service.
-- **Storage and sync:** `briefs` and `evidence` live in the app's SQLite-backed `RecordRoom`. Native subscriptions update other sessions without polling. Ownership is enforced before records reach clients, for both member and admin roles.
-- **Narrow writes:** the browser can only change a brief's `finalNote` and an evidence row's `included`, `stance`, and `note`. Creation, provider output, source text, and deletion go through server actions. Ownership fields are user-bound and immutable. Confirmed mutations are used for trusted save feedback.
-- **Privileged actions:** DeepSpace action tools bypass record RBAC, so every action that accepts a brief ID explicitly verifies its owner. Source deletion also verifies the source's owner and parent brief.
-- **Spend control:** the generic browser integration proxy is denied. Only validated research actions may invoke providers. A native `ResearchBudget` Durable Object serializes counter increments and expiring per-brief leases. This is app-specific policy; auth, record sync, and the integration proxy remain platform primitives.
-- **AI boundary:** page text and notes are untrusted data. The model receives only the selected source snapshots, no browsing tools and no write tools. Zod checks its response shape, and the server refuses every citation outside the supplied evidence set. The UI renders provider text as text, not executable HTML.
+- **Authentication:** DeepSpace's auth provider and verified JWTs. The app does not run its own identity service.
+- **Storage and sync:** briefs and evidence live in the app's SQLite-backed `RecordRoom`. Native subscriptions update other sessions without polling, and ownership is enforced before records reach any client, for both member and admin roles.
+- **Narrow writes:** the browser can change only a brief's `finalNote` and an evidence row's `included`, `stance`, and `note`. Ownership fields are bound to the user and immutable.
+- **Server actions:** DeepSpace action tools bypass record-level permissions, so every action that takes a brief ID verifies its owner first. Removing a source also verifies the source's owner and parent brief.
+- **Spend control:** the browser cannot reach the generic integration proxy, which returns `403`. Only validated research actions can call providers. The `ResearchBudget` Durable Object handles counter increments one at a time, so concurrent requests cannot exceed a limit.
+- **AI boundary:** page text and notes are treated as untrusted data. The model receives only the selected snapshots, with no browsing or write tools. Zod checks the response shape, the server rejects any citation outside the supplied evidence, and the UI renders model output as text, never as HTML.
 
-A valid citation proves **which supplied source was referenced**, not that the model interpreted it correctly. The reader can inspect the saved text and original page before making a decision.
+A valid citation proves which supplied source the model referenced, not that it read the source correctly. The reader can always open the saved text and the original page before deciding.
 
-## Deliberate bounds and tradeoffs
+## Design decisions and limits
 
-**The main tradeoff: the reader chooses the evidence, not an autonomous research agent.** Margin could have run an agent that searches, reads, and answers in one step. Instead, searching, saving a page, and drafting are separate actions, and only sources the reader has saved and included reach the model. This costs extra clicks and makes a brief slower to produce. In return, every claim in a draft cites a page the reader saved and can open, the server can reject any citation outside that set, and each paid call is a single bounded request. Several of the bounds below follow from this choice.
+**The main tradeoff: the reader chooses the evidence, not an autonomous research agent.** Margin could run an agent that searches, reads, and answers in one step. Instead, searching, saving a page, and drafting are separate actions, and only sources the reader has saved and included reach the model. This costs a few extra clicks and makes a brief slower to produce. In return, every claim in a draft cites a page the reader saved and can open, the server can reject any citation outside that set, and each paid call is a single bounded request. The limits below follow from this choice.
 
-- 20 briefs per account; eight saved sources per brief; two to six sources per draft.
-- Six searches, 12 captures, and four draft attempts per person per UTC day. A shared cap of 100 paid research attempts per day protects the evaluation deployment. Failed attempts also count; re-adding a page already saved to the brief does not. Reading, annotation, and export continue after limits are reached.
-- Captures retain the first 18,000 characters of main page text. A draft receives at most the first 9,000 characters per included source. These bounds keep prompts and storage predictable; a reader must open the original for material beyond the saved window.
-- A search and a capture are separate actions. This costs one deliberate click, but avoids extracting irrelevant results and makes source selection part of the product.
-- Each provider action has a server deadline of 95 seconds, inside a 130-second operation lease; Firecrawl's extraction timeout is 25 seconds. Paid calls are never automatically retried. A provider timeout can still have incurred provider cost.
-- Research calls are bounded request/response actions, not a background research agent. They are not resumable jobs. A closed browser or interrupted Worker can require retrying a call; previously saved evidence and drafts remain. Durable background jobs would be the next step if the product grows into long research runs.
-- Text annotations use normal confirmed record updates. Concurrent edits to the same annotation follow last-write-wins behavior; this is not a collaborative text editor.
+| Limit | Value |
+| --- | --- |
+| Briefs per account | 20 |
+| Saved sources per brief | 8 |
+| Sources per draft | 2 to 6 |
+| Daily per-person limits (reset 00:00 UTC) | 6 searches, 12 captures, 4 drafts |
+| Daily cap across all users | 100 paid research calls |
+| Text kept per captured page | First 18,000 characters |
+| Text sent to the model per source | First 9,000 characters |
+| Provider deadline / per-brief lease | 95 seconds / 130 seconds (Firecrawl extraction: 25 seconds) |
 
-## Run locally
+- **Failed calls count toward the limits.** Re-adding a page already saved to the brief does not. Reading, annotating, and exporting keep working after a limit is reached.
+- **Paid calls are never retried automatically.** A provider timeout may still have incurred a cost.
+- **Research calls are bounded requests, not background jobs.** Closing the browser mid-call may mean retrying it; previously saved evidence and drafts remain.
+- **Annotations are last-write-wins.** Concurrent edits to the same note keep the later one; Margin is not a collaborative text editor.
 
-Use a supported Node line: **22.15+** or **24** (24 is pinned in `.nvmrc`). Node 20 cannot run the test tooling. Use **npm 11.6+**.
+## Getting started
+
+**Prerequisites:** Node **22.15+** or **24** (24 is pinned in `.nvmrc`), npm **11.6+**, and a DeepSpace account.
 
 ```sh
 npm ci
@@ -67,72 +99,53 @@ npx deepspace auth login
 npx deepspace dev start
 ```
 
-The app is served at `http://localhost:5173`. Use `--port 5187` if another project uses that port. On a machine with restrictive filesystem watchers, set `CHOKIDAR_USEPOLLING=1`.
+The app runs at `http://localhost:5173`. Pass `--port <port>` if that port is taken. On machines with restrictive filesystem watchers, set `CHOKIDAR_USEPOLLING=1`.
 
-The app ID in `wrangler.toml` identifies this deployment. To create your own independent deployment from a clone, follow DeepSpace's app identity/fork workflow; do not silently replace its ID while working on this app.
+**Deploy** with `npx deepspace deploy`. The app ID in `wrangler.toml` identifies this deployment; to run your own copy, follow DeepSpace's app identity and fork workflow rather than editing the ID.
 
-## Verify
+## Testing
 
 ```sh
-npm run validate                   # TypeScript + domain tests
-npm run lint                       # Rules of Hooks
-npx deepspace test run all          # HTTP + auth + real two-account WebSocket checks
+npm run validate             # type-check and unit tests
+npm run lint                 # ESLint, including the Rules of Hooks
+npx deepspace test run all   # HTTP, auth, and two-account WebSocket tests
 ```
 
-Authenticated tests use test accounts from the DeepSpace CLI's private account registry. Provision two using `deepspace test accounts create --help` and `--password-stdin`; do not put passwords in source or argv. Without usable accounts, the authenticated suites explicitly skip. Tests create prefixed disposable records and remove only those records.
+- **Unit tests** cover malformed and counterfeit citations, stale evidence, export provenance, URL restrictions, and the theme-selection rule.
+- **Integration tests** cover missing and forged auth, inaccessible actions, private query filtering, cross-account refusals, forbidden field writes, forged evidence, two-session updates, and reconnect persistence.
+- **Test accounts** come from the DeepSpace CLI's private account registry. Create two with `deepspace test accounts create` (see `--help`), passing each password through `--password-stdin`; never put passwords in source or on the command line. Without accounts, authenticated suites are skipped. Tests create prefixed, disposable records and remove only those.
 
-The API and WebSocket tests use Playwright's request runner and Node WebSockets, so they require no local Chromium process. The UI also needs an actual browser review; HTTP smoke checks alone do not prove it renders.
-
-For a running local or deployed app:
+To run the suites against a running local or deployed app:
 
 ```sh
 MARGIN_BASE_URL=http://127.0.0.1:5173 npx playwright test --config tests/playwright.config.ts
 ```
 
-The bounded **live integration check is opt-in** and spends the owner's DeepSpace credits: one Exa search, two different Firecrawl captures (the minimum evidence set), and one OpenAI draft. There are no provider mocks or automatic retries.
+The **live integration check** is opt-in because it spends DeepSpace credits: one Exa search, two Firecrawl captures, and one OpenAI draft, with no mocks or retries.
 
 ```sh
 MARGIN_LIVE_CHECK=1 npx deepspace test run tests/live.spec.ts
 ```
 
-The regular suites verify missing/forged auth, inaccessible actions, private query filtering, cross-account action refusals, forbidden field writes, forged evidence creation, two-session updates, and reconnect persistence. Domain tests cover malformed/counterfeit citations, stale evidence, export provenance, and URL restrictions.
+## Project structure
 
-## Source map
-
-| File | Responsibility |
+| Path | Responsibility |
 | --- | --- |
-| `src/pages/(app)/home.tsx` | Real RecordRoom data/controller and isolated example state |
-| `src/components/ResearchDesk.tsx` + `src/components/research/` | Desk shell, evidence review, citation reader, decision form, and export |
-| `src/domain.ts` | Brief types, citation validation, stale-input detection, export, and URL normalization |
-| `src/color-mode.ts` + `src/themes.css` | Light/dark mode on the SDK's `data-ui-theme` attribute, and both palettes; `src/desk.css` writes each color as `light-dark()` |
+| `src/pages/(app)/home.tsx` | Live record data and the isolated example-desk state |
+| `src/components/ResearchDesk.tsx`, `src/components/research/` | Desk shell, evidence review, source reader, decision form, export, theme toggle |
+| `src/domain.ts` | Brief types, citation validation, stale-input detection, export, URL normalization |
 | `src/actions/index.ts` | Authorized search, capture, drafting, creation, and deletion |
-| `src/schemas/research-schema.ts` | Native collection ownership and writable-field policies |
-| `src/server/research-budget.ts` | Atomic daily request limits and operation leases |
-| `worker.ts` | Standard platform wiring, custom budget binding, and proxy denial |
-| `tests/` | Real HTTP/WebSocket tests and explicit paid integration check |
+| `src/schemas/research-schema.ts` | Collection ownership and writable-field policies |
+| `src/server/research-budget.ts` | Atomic daily limits and per-brief operation leases |
+| `src/color-mode.ts`, `src/themes.css`, `src/desk.css` | Light and dark themes; colors are written as `light-dark()` pairs |
+| `worker.ts` | Platform wiring, the budget binding, and the integration-proxy block |
+| `tests/` | HTTP and WebSocket tests, and the opt-in paid integration check |
 
-## What I would do next
+## Roadmap
 
-First, add document-level source completeness feedback and retrieval dates in the draft, then improve how long pages are excerpted so important passages do not fall outside the prompt window. Next, add a versioned brief history and conditional note updates. I would add background jobs only when research can exceed the current bounded calls, and sharing only after defining its permission model and testing revoked access.
-
-## How I built it: my role, the agents, and verification
-
-**My role.** I went through the DeepSpace example apps myself, then proposed Margin: a desk for working toward a decision from evidence you chose and read, instead of accepting an instant AI answer. I also proposed its tech stack and architecture, and Codex implemented that design. I reviewed what Codex produced and redirected it when it got things wrong. Before submitting, I had a second agent audit the result, decided which findings to fix, and shipped the fixes.
-
-**What I checked myself.**
-
-- I signed in to the live app and took a brief through the full flow: search, saving and annotating sources, drafting, recording a decision, and exporting.
-- I read the core server code that enforces ownership and spending limits.
-- I completed the DeepSpace login and approved publishing the repository.
-
-**What Codex did (build).** Codex implemented my design. It read the DeepSpace docs, scaffolded the app, built the product and its security boundaries, wrote the tests, and ran automated and browser checks.
-
-**What Claude Code did (independent audit).** I did not treat the builder's own test report as proof. I gave a second agent the exercise's criteria as its checklist and had it audit the app. On November 21, 2026 it:
-
-- re-ran type-checking, lint, the 15 domain tests, and the production build, plus the full HTTP/WebSocket suite with two test accounts locally and the smoke and API checks against the deployment;
-- confirmed that the deployed bundle matched a fresh build of the committed source;
-- probed the live app for ways to spend credits outside the research actions (the generic integration proxy, the AI chat route, forged bearer tokens, prototype action names); each was refused or absent;
-- rendered the live app in Chrome at desktop and phone widths: no console errors, failed requests, or horizontal overflow;
-- ran the paid live check against production: a real Exa search, two Firecrawl snapshots, a cited OpenAI draft, and persistence after reconnect.
-
-It found one small defect: re-adding a page already saved to a brief used up one of the day's captures. It also found that this README lacked the live URL. I had both fixed, then committed, pushed, and redeployed.
+- Retrieval dates and source-completeness feedback in drafts.
+- Smarter excerpting of long pages, so key passages are not cut off by the prompt window.
+- Versioned brief history.
+- Version-checked annotation updates in place of last-write-wins.
+- Background jobs, once research needs to run longer than a single bounded call.
+- Sharing, after its permission model is designed and revoked access is tested.
