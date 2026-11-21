@@ -127,6 +127,9 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
       method: 'POST',
       headers,
       body: JSON.stringify(data ?? {}),
+      // Margin's paid work is one bounded call per action. Keep the server
+      // deadline shorter than the 130-second per-brief lease.
+      signal: AbortSignal.timeout(95_000),
     })
     const payload = (await res.json()) as Record<string, unknown>
     if (!res.ok || payload.success === false) {

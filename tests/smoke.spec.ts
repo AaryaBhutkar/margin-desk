@@ -1,71 +1,27 @@
 import { test, expect } from '@playwright/test'
-import { captureConsoleErrors } from './helpers/errors'
 
-/**
- * Smoke tests covering both page kinds this template ships:
- *   - '/'      → the static landing (top level of src/pages/): no providers,
- *                so no auth fetch and no records WebSocket on load.
- *   - '/home'  → a dynamic page (under src/pages/(app)/): the providers mount,
- *                the nav shell renders, and the records WebSocket connects.
- *
- * The "static contract" test is the guardrail for the per-page opt-out: if
- * someone moves the providers back up into _app.tsx, it fails.
- */
-
-/** Wait for the React app shell (present on every page). */
-async function waitForApp(page: import('@playwright/test').Page) {
-  await page.waitForSelector('[data-testid="app-root"]', { timeout: 15000 })
+// Browser interaction and responsive layout are also checked in the in-app
+// browser. These checks deliberately need no local Chromium installation.
+for (const path of ['/', '/home']) {
+  test(`app shell and metadata are served at ${path}`, async ({ request }) => {
+    const response = await request.get(path)
+    expect(response.status()).toBe(200)
+    const html = await response.text()
+    expect(html).toContain('Margin — A decision desk')
+    expect(html).toContain('id="root"')
+    expect(html).toContain('noindex, nofollow')
+    const script = html.match(/<script[^>]+src="([^"]+)"/)
+    expect(script).not.toBeNull()
+    const bundle = await request.get(script![1])
+    expect(bundle.ok()).toBeTruthy()
+    expect(bundle.headers()['content-type']).toMatch(/javascript/)
+  })
 }
 
-test.describe('Smoke tests', () => {
-  test('static landing loads without JS errors', async ({ page }) => {
-    const errors = captureConsoleErrors(page)
-    await page.goto('/')
-    await waitForApp(page)
-    await expect(page.getByTestId('static-landing')).toBeVisible()
-    expect(errors).toEqual([])
-  })
-
-  test('landing carries one title, one description, one canonical', async ({ page }) => {
-    // <Seo> (src/pages/index.tsx, values from src/seo.ts) hoists these into
-    // <head>. Exactly one of each: index.html ships no static description or
-    // canonical, because React 19 would not dedupe against them on mount.
-    await page.goto('/')
-    await expect(page.getByTestId('static-landing')).toBeVisible()
-    await expect(page).toHaveTitle(/\S/)
-    expect(await page.locator('head meta[name="description"]').count()).toBe(1)
-    expect(await page.locator('head link[rel="canonical"]').count()).toBe(1)
-  })
-
-  test('static contract: landing fires no auth request, opens no websocket', async ({ page }) => {
-    const offenders: string[] = []
-    page.on('request', (req) => {
-      if (req.url().includes('/api/auth/')) offenders.push(req.url())
-    })
-    // Only the DO room route counts — vite's own HMR socket is a dev artifact.
-    page.on('websocket', (ws) => {
-      if (new URL(ws.url()).pathname.startsWith('/ws/')) offenders.push(`ws: ${ws.url()}`)
-    })
-    await page.goto('/')
-    await expect(page.getByTestId('static-landing')).toBeVisible()
-    await page.waitForTimeout(1500)
-    expect(offenders).toEqual([])
-  })
-
-  test('dynamic app boundary mounts on /home', async ({ page }) => {
-    await page.goto('/home')
-    await expect(page.getByTestId('app-navigation')).toBeVisible({ timeout: 15000 })
-  })
-
-  test('sign-in button visible when logged out', async ({ page }) => {
-    await page.goto('/home')
-    await expect(page.getByTestId('nav-sign-in-button')).toBeVisible({ timeout: 15000 })
-    await expect(page.getByTestId('nav-user-name')).toHaveCount(0)
-  })
-
-  test('unknown route shows 404', async ({ page }) => {
-    await page.goto('/nonexistent-page-xyz')
-    await waitForApp(page)
-    await expect(page.locator('text=404')).toBeVisible()
-  })
+test('missing assets and API routes return real 404 responses', async ({ request }) => {
+  const asset = await request.get('/assets/removed-build-chunk.js')
+  expect(asset.status()).toBe(404)
+  const api = await request.get('/api/this-route-does-not-exist')
+  expect(api.status()).toBe(404)
+  expect(await api.text()).not.toContain('id="root"')
 })

@@ -26,5 +26,8 @@ export const integrations: Record<
 > = {
   google: { billing: 'user' },
   composio: { billing: 'user' },
+  exa: { billing: 'developer' },
+  firecrawl: { billing: 'developer' },
+  openai: { billing: 'developer' },
   // openai: { billing: 'developer', anonymous: true },
 }
