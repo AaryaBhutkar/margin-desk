@@ -45,6 +45,8 @@ A valid citation proves **which supplied source was referenced**, not that the m
 
 ## Deliberate bounds and tradeoffs
 
+**The main tradeoff: the reader chooses the evidence, not an autonomous research agent.** Margin could have run an agent that searches, reads, and answers in one step. Instead, searching, saving a page, and drafting are separate actions, and only sources the reader has saved and included reach the model. This costs extra clicks and makes a brief slower to produce. In return, every claim in a draft cites a page the reader saved and can open, the server can reject any citation outside that set, and each paid call is a single bounded request. Several of the bounds below follow from this choice.
+
 - 20 briefs per account; eight saved sources per brief; two to six sources per draft.
 - Six searches, 12 captures, and four draft attempts per person per UTC day. A shared cap of 100 paid research attempts per day protects the evaluation deployment. Failed attempts also count; re-adding a page already saved to the brief does not. Reading, annotation, and export continue after limits are reached.
 - Captures retain the first 18,000 characters of main page text. A draft receives at most the first 9,000 characters per included source. These bounds keep prompts and storage predictable; a reader must open the original for material beyond the saved window.
