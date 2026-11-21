@@ -36,6 +36,11 @@ test('real search → two saved snapshots → cited brief → durable decision',
       url: 'https://www.sqlite.org/whentouse.html',
     })
     expect(first.body.success, first.body.error).toBe(true)
+    const again = await action(user.api, user.token, 'captureSource', {
+      briefId,
+      url: 'https://www.sqlite.org/whentouse.html#appfileformat',
+    })
+    expect(again.body.data).toEqual({ recordId: first.body.data.recordId, existing: true })
     const second = await action(user.api, user.token, 'captureSource', {
       briefId,
       url: 'https://www.sqlite.org/lockingv3.html',

@@ -2,6 +2,8 @@
 
 A little research. A clearer decision.
 
+**Live:** <https://margin-desk.app.space> · **Repository:** <https://github.com/AaryaBhutkar/margin-desk>
+
 Margin is a private research desk for decisions that deserve more than an instant AI answer. Start with a specific question, read a few sources, annotate what supports or challenges the idea, and draft a brief you can trace back to the evidence. Your own decision stays separate from the AI draft.
 
 Built with **DeepSpace 0.44.2**, React, Hono, and Cloudflare Durable Objects.
@@ -44,7 +46,7 @@ A valid citation proves **which supplied source was referenced**, not that the m
 ## Deliberate bounds and tradeoffs
 
 - 20 briefs per account; eight saved sources per brief; two to six sources per draft.
-- Six searches, 12 captures, and four draft attempts per person per UTC day. A shared cap of 100 paid research attempts per day protects the evaluation deployment. Failed attempts also count. Reading, annotation, and export continue after limits are reached.
+- Six searches, 12 captures, and four draft attempts per person per UTC day. A shared cap of 100 paid research attempts per day protects the evaluation deployment. Failed attempts also count; re-adding a page already saved to the brief does not. Reading, annotation, and export continue after limits are reached.
 - Captures retain the first 18,000 characters of main page text. A draft receives at most the first 9,000 characters per included source. These bounds keep prompts and storage predictable; a reader must open the original for material beyond the saved window.
 - A search and a capture are separate actions. This costs one deliberate click, but avoids extracting irrelevant results and makes source selection part of the product.
 - Each provider action has a server deadline of 95 seconds, inside a 130-second operation lease; Firecrawl's extraction timeout is 25 seconds. Paid calls are never automatically retried. A provider timeout can still have incurred provider cost.
@@ -53,7 +55,7 @@ A valid citation proves **which supplied source was referenced**, not that the m
 
 ## Run locally
 
-Use a supported Node line (Node **24** is pinned in `.nvmrc`) and **npm 11.6+**.
+Use a supported Node line: **22.15+** or **24** (24 is pinned in `.nvmrc`). Node 20 cannot run the test tooling. Use **npm 11.6+**.
 
 ```sh
 npm ci
@@ -108,8 +110,20 @@ The regular suites verify missing/forged auth, inaccessible actions, private que
 
 First, add document-level source completeness feedback and retrieval dates in the draft, then improve how long pages are excerpted so important passages do not fall outside the prompt window. Next, add a versioned brief history and conditional note updates. I would add background jobs only when research can exceed the current bounded calls, and sharing only after defining its permission model and testing revoked access.
 
-## Agent use and applicant verification
+## Agent use and verification
 
-Codex selected the focused concept, read the DeepSpace docs and two example repositories (StoryNest and ThreadHunt), scaffolded the app, implemented its product and security boundaries, wrote the tests, and ran the automated and browser checks. The applicant completed the DeepSpace login and approved publication of the public GitHub repository.
+**Build (Codex).** Codex selected the focused concept, read the DeepSpace docs and two example repositories (StoryNest and ThreadHunt), scaffolded the app, implemented its product and security boundaries, wrote the tests, and ran the automated and browser checks. I completed the DeepSpace login and approved publication of the public GitHub repository.
 
-Agent-run checks are documented separately from the applicant's own verification. Before submitting, the applicant should personally walk through a new brief, inspect the source text and citations, change an annotation, observe the stale-draft notice, record a decision, export, and reload. The submission note must accurately describe that personal review; it must not present the agent's testing as the applicant's work.
+**Independent audit (Claude Code).** Before submitting, I had a second agent audit Codex's work rather than rely on the builder's own report. On November 21, 2026 it:
+
+- re-ran type-checking, lint, the 15 domain tests, and the production build, plus the full HTTP/WebSocket suite with two test accounts locally and the smoke and API checks against the deployment;
+- confirmed that the deployed bundle matched a fresh build of the committed source;
+- probed the live app for ways to spend credits outside the research actions (the generic integration proxy, the AI chat route, forged bearer tokens, prototype action names); each was refused or absent;
+- rendered the live app in Chrome at desktop and phone widths: no console errors, failed requests, or horizontal overflow;
+- ran the paid live check against production: a real Exa search, two Firecrawl snapshots, a cited OpenAI draft, and persistence after reconnect.
+
+It found one small defect, now fixed: re-adding a page already saved to a brief used up one of the day's captures. It also flagged that this README lacked the live URL.
+
+**What I verified myself.**
+
+> **TODO before submitting:** replace this note with what you personally did and saw on the live app (for example: a new brief through search, reading and annotating two sources, drafting, changing an annotation to see the stale-draft notice, recording a decision, exporting, and reloading) and anything you changed as a result.

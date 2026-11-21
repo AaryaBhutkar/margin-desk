@@ -184,6 +184,11 @@ export const actions: Record<string, ActionHandler<Env>> = {
     const url = publicUrl(input)
     if (!url) throw new Error('Use a public HTTPS page URL.')
     await ownBrief(ctx, briefId)
+    // Re-adding a page already saved to this brief needs no provider call, so
+    // answer it before reserving a daily capture. The check repeats under the
+    // lease below in case a concurrent capture saved it first.
+    const saved = (await sourcesFor(ctx, briefId)).find((s) => s.data.url === url)
+    if (saved) return ok({ recordId: saved.recordId, existing: true })
     return operation(ctx, briefId, 'capture', async () => {
       const brief = await ownBrief(ctx, briefId)
       const sources = await sourcesFor(ctx, briefId)
