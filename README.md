@@ -2,33 +2,69 @@
 
 **A little research. A clearer decision.**
 
-Margin is a private research desk for decisions that deserve more than an instant AI answer. Start with a specific question, read a few sources, note what supports or challenges the idea, and draft a decision brief in which every claim cites a page you saved. Your own decision stays separate from the AI draft.
+Margin is a research desk for decisions that deserve more than an instant AI answer. You frame a question, collect and read sources, record what each one means for your decision, and get an AI-drafted decision brief in which every claim cites a page you saved. The final decision stays yours, recorded in your own words.
 
 **Live app:** <https://margin-desk.app.space>
 
-![The decision brief in light mode: a recommendation with numbered citations, and the cited sources listed beside it](docs/screenshots/decision-brief-light.png)
+![A decision brief: a cited recommendation, with the sources it draws on listed alongside](docs/screenshots/decision-brief.png)
 
-## Features
+## Contents
 
-- **Briefs.** Open a brief with a question and your constraints.
-- **Evidence.** Search the web for candidate sources, or add any public HTTPS page.
-- **Reading and annotation.** Save a page's main text, read it in place, add a note, mark it as supporting, challenging, or adding context, and include it in the brief or set it aside.
-- **Cited drafts.** Draft from two to six included sources. Every finding links to the sources it cites, alongside a counterargument and the questions that remain open.
-- **Your decision.** Record your own decision next to the draft, then export the brief as Markdown with source links and research notes.
-- **Stale-draft detection.** Changing the selected evidence or an annotation marks the existing draft out of date. Old drafts keep their source references even after a source is removed.
-- **Graceful failure.** A failed search, extraction, or model call keeps the last successful result and offers a retry.
-- **Example desk.** Signed-out visitors get an interactive, clearly labeled example with curated content. It makes no paid calls, and edits stay in memory.
-- **Light and dark themes.** Margin follows the system setting until the reader picks a theme, and remembers the choice. Motion is kept small, and all of it is turned off for readers who ask for reduced motion.
+- [Core features](#core-features)
+- [How AI supports the decision](#how-ai-supports-the-decision)
+- [Architecture](#architecture)
+- [DeepSpace integrations](#deepspace-integrations)
+- [Security and trust boundaries](#security-and-trust-boundaries)
+- [Design decisions and limits](#design-decisions-and-limits)
+- [Getting started](#getting-started)
+- [Testing](#testing)
+- [Project structure](#project-structure)
+- [Roadmap](#roadmap)
 
-![The evidence list in dark mode: source cards with stances and notes, and a tally of supporting and challenging sources](docs/screenshots/evidence-dark.png)
+## Core features
 
-## Tech stack
+1. **Frame the decision.** A brief starts with a specific question and the constraints that matter, such as team size, budget, or deadline.
+2. **Find evidence.** Search the web for candidate sources, or add any public HTTPS page directly.
+3. **Capture and read.** Margin saves the main text of each chosen page as a snapshot, so you read the actual source rather than a search snippet.
+4. **Annotate.** For each source, record your stance (supports, challenges, or adds context), write a note, and include it in the brief or set it aside.
+5. **Draft a decision brief.** The AI drafts a brief from two to six included sources. Every claim cites the sources behind it, and each citation opens the saved text and your note.
+6. **Decide.** Record your own decision, separate from the AI draft.
+7. **Export.** Download the brief as Markdown, with your decision, the cited draft, the source list with capture dates, and your research notes.
 
-- **Platform:** [DeepSpace](https://docs.deep.space) 0.44.2 on Cloudflare Workers and Durable Objects
-- **Frontend:** React 19, Vite, Tailwind CSS v4, file-based routing
-- **Server:** Hono, with Zod validation of action inputs and model responses
-- **Integrations:** Exa, Firecrawl, and OpenAI, through the DeepSpace integration proxy
-- **Testing:** Vitest for unit tests; Playwright and Node WebSockets for HTTP, auth, and multi-account sync tests
+Briefs and evidence sync live across all of a user's open sessions. Signed-out visitors can explore a clearly labeled example desk, which makes no paid calls.
+
+![The evidence view: saved sources with the reader's stance and notes, and a tally of supporting and challenging evidence](docs/screenshots/evidence.png)
+
+## How AI supports the decision
+
+AI in Margin drafts the reasoning, and the reader makes the decision. The model is used at one step, drafting the decision brief, and it works only from evidence the reader has chosen and read.
+
+**What the model receives.** The question and its constraints, plus each included source: its title, URL, capture date, the reader's stance and note, and the first 9,000 characters of its saved text. It has no browsing tools, no write access, and is instructed not to use outside knowledge.
+
+**What it returns.** A structured brief, validated against a Zod schema before it is saved:
+
+| Part | Purpose |
+| --- | --- |
+| Headline and recommendation | A short conclusion and a qualified recommendation, with citations |
+| Findings (2 to 4) | What the evidence says, each claim cited |
+| Counterargument | The strongest caveat or alternative, required even when the evidence is one-sided |
+| Uncertainties (1 to 4) | What the evidence does not answer |
+| Next step | One concrete test to run before committing |
+
+**How the output is kept honest.**
+
+- **Citations are checked on the server.** Any claim that cites a source outside the included set is rejected, along with the whole draft, and the previous draft is kept.
+- **Sources are treated as data, not instructions.** The prompt tells the model never to follow instructions found in page text or notes, which guards against prompt injection from captured pages.
+- **A stance is an opinion, not proof.** The model is told that the reader's stance is their own reading of a source, and to weigh the strongest counterargument regardless.
+- **Thin evidence leads to a cautious draft.** With little evidence, the model is told to recommend a small, reversible next step and to list what remains unknown.
+- **Output is consistent.** A low temperature (0.2), a token cap, and a 450-word target in the prompt keep drafts focused and comparable.
+
+**How the reader stays in control.**
+
+- The reader chooses which sources reach the model, and how each one is read.
+- The reader's decision is recorded separately from the AI draft, and the export keeps them under separate headings.
+- Changing any included source, stance, or note marks the draft out of date, so a brief is never silently based on old evidence.
+- A valid citation proves which saved source a claim refers to, not that the model read it correctly. The reader can open the saved text and the original page to check.
 
 ## Architecture
 
@@ -44,15 +80,22 @@ Browser (React)
                                        └─▶ RecordRoom: validated results saved and synced to every open session
 ```
 
-Reads, annotations, stances, inclusion toggles, and the reader's decision go straight to the record room. Anything that creates records, calls a paid provider, or deletes data goes through an authenticated server action.
+Reading, annotating, choosing sources, and recording a decision go straight to the record room. Anything that creates records, calls a paid provider, or deletes data goes through an authenticated server action.
 
-## Integrations
+**Tech stack**
+
+- **Platform:** [DeepSpace](https://docs.deep.space) 0.44.2 on Cloudflare Workers and Durable Objects
+- **Frontend:** React 19, Vite, Tailwind CSS v4, file-based routing
+- **Server:** Hono, with Zod validation of action inputs and model responses
+- **Testing:** Vitest for unit tests; Playwright and Node WebSockets for HTTP, auth, and multi-account sync tests
+
+## DeepSpace integrations
 
 | Integration | Role in the product | Why it is here |
 | --- | --- | --- |
-| `exa/search` | Finds up to six relevant pages, with short excerpts | Helps the reader discover evidence and counterarguments without generating a premature answer. |
+| `exa/search` | Finds up to six relevant pages, with short excerpts | Helps the reader discover evidence and counterarguments before any answer is drafted. |
 | `firecrawl/scrape` | Extracts the main text of a page the reader chooses | Drafts work from a saved, inspectable snapshot instead of a search snippet. |
-| `openai/chat-completion` | Turns the included snapshots and annotations into a structured decision brief | Connects findings, names uncertainty, and cites only the supplied sources. Uses `gpt-4.1-mini` for bounded, fast synthesis. |
+| `openai/chat-completion` | Drafts the decision brief from the included sources | Connects findings, names uncertainty, and cites only supplied sources. Uses `gpt-4.1-mini` for fast, bounded synthesis. |
 
 All three run through DeepSpace's integration proxy with developer billing, so the app holds no vendor API keys. Real research requires sign-in.
 
@@ -65,9 +108,7 @@ Calendar, messaging, payments, email, and image generation were left out because
 - **Narrow writes:** the browser can change only a brief's `finalNote` and an evidence row's `included`, `stance`, and `note`. Ownership fields are bound to the user and immutable.
 - **Server actions:** DeepSpace action tools bypass record-level permissions, so every action that takes a brief ID verifies its owner first. Removing a source also verifies the source's owner and parent brief.
 - **Spend control:** the browser cannot reach the generic integration proxy, which returns `403`. Only validated research actions can call providers. The `ResearchBudget` Durable Object handles counter increments one at a time, so concurrent requests cannot exceed a limit.
-- **AI boundary:** page text and notes are treated as untrusted data. The model receives only the selected snapshots, with no browsing or write tools. Zod checks the response shape, the server rejects any citation outside the supplied evidence, and the UI renders model output as text, never as HTML.
-
-A valid citation proves which supplied source the model referenced, not that it read the source correctly. The reader can always open the saved text and the original page before deciding.
+- **Untrusted content:** page text, notes, and model output are rendered as text, never as HTML. Captured URLs must be public HTTPS addresses; credentials, IP addresses, local hostnames, and non-standard ports are refused.
 
 ## Design decisions and limits
 
@@ -111,7 +152,7 @@ npm run lint                 # ESLint, including the Rules of Hooks
 npx deepspace test run all   # HTTP, auth, and two-account WebSocket tests
 ```
 
-- **Unit tests** cover malformed and counterfeit citations, stale evidence, export provenance, URL restrictions, and the theme-selection rule.
+- **Unit tests** cover malformed and counterfeit citations, stale evidence, export provenance, and URL restrictions.
 - **Integration tests** cover missing and forged auth, inaccessible actions, private query filtering, cross-account refusals, forbidden field writes, forged evidence, two-session updates, and reconnect persistence.
 - **Test accounts** come from the DeepSpace CLI's private account registry. Create two with `deepspace test accounts create` (see `--help`), passing each password through `--password-stdin`; never put passwords in source or on the command line. Without accounts, authenticated suites are skipped. Tests create prefixed, disposable records and remove only those.
 
@@ -131,13 +172,14 @@ MARGIN_LIVE_CHECK=1 npx deepspace test run tests/live.spec.ts
 
 | Path | Responsibility |
 | --- | --- |
-| `src/pages/(app)/home.tsx` | Live record data and the isolated example-desk state |
-| `src/components/ResearchDesk.tsx`, `src/components/research/` | Desk shell, evidence review, source reader, decision form, export, theme toggle |
-| `src/domain.ts` | Brief types, citation validation, stale-input detection, export, URL normalization |
-| `src/actions/index.ts` | Authorized search, capture, drafting, creation, and deletion |
+| `src/actions/index.ts` | Authorized search, capture, drafting, creation, and deletion, including the drafting prompt |
+| `src/domain.ts` | Brief types, the draft schema, citation validation, stale-evidence detection, export, URL rules |
 | `src/schemas/research-schema.ts` | Collection ownership and writable-field policies |
 | `src/server/research-budget.ts` | Atomic daily limits and per-brief operation leases |
-| `src/color-mode.ts`, `src/themes.css`, `src/desk.css` | Light and dark themes; colors are written as `light-dark()` pairs |
+| `src/pages/(app)/home.tsx` | Live record data and the isolated example-desk state |
+| `src/components/ResearchDesk.tsx`, `src/components/research/` | Desk shell, evidence review, source reader, decision form, export |
+| `src/components/ui/` | Shared UI primitives |
+| `src/desk.css`, `src/themes.css`, `src/color-mode.ts` | Styles, design tokens, and color scheme |
 | `worker.ts` | Platform wiring, the budget binding, and the integration-proxy block |
 | `tests/` | HTTP and WebSocket tests, and the opt-in paid integration check |
 
